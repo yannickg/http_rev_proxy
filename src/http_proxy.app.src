@@ -1,11 +1,13 @@
 {application, http_proxy,
  [
-  {description, ""},
+  {description, "Erlang HTTP Proxy"},
   {vsn, "1"},
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  lager,
+                  ranch
                  ]},
   {mod, { http_proxy_app, []}},
   {env, []}
