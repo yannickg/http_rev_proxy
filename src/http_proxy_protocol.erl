@@ -12,7 +12,7 @@ init(ListenerPid, Socket, Transport, Opts) ->
 	loop(Socket, Transport).
 
 loop(Socket, Transport) ->
-	case Transport:recv(Socket, 0, 5000) of
+	case Transport:recv(Socket, 0, 30000) of
 		{ok, Data} ->
 			Transport:send(Socket, Data),
 			loop(Socket, Transport);
