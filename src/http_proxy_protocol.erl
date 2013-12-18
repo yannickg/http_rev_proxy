@@ -17,7 +17,6 @@ init(ListenerPid, Socket, Transport, Opts) ->
 		CallbackPid ->
 			lager:info ("listening socket", []),
 			http_proxy_tcp:tcp_open(CallbackPid, Socket, Transport),
-			lager:info ("listening socket", []),
 			ranch:accept_ack(ListenerPid),
 			loop(Socket, Transport, CallbackPid)
 	end.
@@ -30,5 +29,6 @@ loop(Socket, Transport, CallbackPid) ->
 			http_proxy_tcp:tcp_message(CallbackPid, Socket, Transport, Data),
 			loop(Socket, Transport, CallbackPid);
 		_ ->
+			lager:info ("socket disconnected", []),
 			http_proxy_tcp:tcp_close(CallbackPid, Socket, Transport)
 	end.

@@ -31,33 +31,33 @@ init([Num, Port]) ->
    {ok, #state{state_machine_pid=dict:new()}}.
 
 % handle_call is invoked in response to gen_server:call
-handle_call({tcp_open, Socket, Transport}, _From, State) ->
+handle_call({tcp_open, Socket, _Transport}, _From, State) ->
 
    % Create State Machine
    lager:info ("instantiating state machine", []),
-   {ok, Pid} = http_proxy_connection:start_link(Socket, Transport),
-   lager:info("pid: ~p", [Pid]),
+   {ok, Pid} = http_proxy_connection:start_link(Socket),
    {reply, ok, State#state{state_machine_pid = dict:store(Socket, Pid, State#state.state_machine_pid)}};
 
-handle_call({tcp_message, Socket, Transport, Message}, _From, State) ->
+handle_call({tcp_message, Socket, _Transport, Message}, _From, State) ->
 
    % Send state machine new data
    Pid = dict:fetch(Socket, State#state.state_machine_pid),
-   lager:info("pid: ~p", [Pid]),
-   http_proxy_connection:received_message(Pid, Message),
+   http_proxy_connection:received_request(Pid, Message),
    % Transport:send(Socket, Data),
    {reply, ok, State};
 
-handle_call({tcp_close, Socket, Transport}, _From, State) ->
+handle_call({tcp_close, Socket, _Transport}, _From, State) ->
 
-   ok = Transport:close(Socket),
+   % Send state machine new data
+   Pid = dict:fetch(Socket, State#state.state_machine_pid),
+   http_proxy_connection:client_disconnected(Pid),
    {reply, ok, State};
 
-handle_call(_Message, _From, Library) ->
-    {reply, error, Library}.
+handle_call(_Message, _From, State) ->
+    {reply, error, State}.
 
 % We get compile warnings from gen_server unless we define these
-handle_cast(_Message, Library) -> {noreply, Library}.
-handle_info(_Message, Library) -> {noreply, Library}.
-terminate(_Reason, _Library) -> ok.
-code_change(_OldVersion, Library, _Extra) -> {ok, Library}.
+handle_cast(_Message, State) -> {noreply, State}.
+handle_info(_Message, State) -> {noreply, State}.
+terminate(_Reason, _State) -> ok.
+code_change(_OldVersion, State, _Extra) -> {ok, State}.
