@@ -8,7 +8,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 start_link(Num, Port) ->
-   io:format("Entering server~n"),
    gen_server:start_link({local, ?MODULE}, ?MODULE, [Num, Port], []).
 
 tcp_open(Pid, Socket, Transport) ->
@@ -24,7 +23,6 @@ tcp_close(Pid, Socket, Transport) ->
 
 % This is called when a connection is made to the server
 init([Num, Port]) ->
-   io:format("Initializing server~n"),
    {ok, _} = ranch:start_listener(http_proxy, Num,
       ranch_tcp, [{port, Port}], http_proxy_protocol, []),
    ranch:set_protocol_options(http_proxy, [{http_proxy_tcp, self()}]),
@@ -34,7 +32,6 @@ init([Num, Port]) ->
 handle_call({tcp_open, Socket, _Transport}, _From, State) ->
 
    % Create State Machine
-   lager:info ("instantiating state machine", []),
    {ok, Pid} = http_proxy_connection:start_link(Socket),
    {reply, ok, State#state{state_machine_pid = dict:store(Socket, Pid, State#state.state_machine_pid)}};
 

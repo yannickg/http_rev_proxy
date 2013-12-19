@@ -36,7 +36,6 @@ server_disconnected(Pid) ->
                 message}).
 
 init([Socket]) ->
-  lager:info ("State machine created", []),
    {ok, initial, #state{client_socket=Socket}}.
 
 %% Note: DO NOT reply to unexpected calls. Let the call-maker crash!
@@ -73,9 +72,9 @@ loop(Pid) ->
       {tcp, Socket, Data} ->
          http_proxy_connection:received_response(Pid, Data),
          inet:setopts(Socket, [{active, once}]);
-      {tcp_closed, _Socket} -> 
-         lager:info("handle_info:tcp_closed", []);
-      {tcp_error, _Socket, Reason} -> 
+      {tcp_closed, _Socket} ->
+         ok;
+      {tcp_error, _Socket, Reason} ->
          lager:info("handle_info:tcp_error - ~p", [Reason])
    end,
 
@@ -83,20 +82,16 @@ loop(Pid) ->
 
 initial({received_request, Request}, State=#state{}) ->
 
-   lager:info ("state initial - received request - Data: ~p", [Request]),
-
    % make decision here.
    Pid = spawn_link(?MODULE, loop, [self()]),
-   {ok, Socket} = gen_tcp:connect("siptricks.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
+   {ok, Socket} = gen_tcp:connect("google.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
    gen_tcp:controlling_process(Socket, Pid),
 
-   lager:info ("connected to siptricks.com", []),
    gen_tcp:send(Socket, Request),
 
    {next_state, connected, State#state{server_socket=Socket}};
 
-initial({client_disconnected, Request}, State=#state{}) ->
-   lager:info ("state initial - received request - Data: ~p", [Request]),
+initial(client_disconnected, State=#state{}) ->
    gen_tcp:close(State#state.client_socket),
    {next_state, disconnected, State};
 
@@ -105,23 +100,19 @@ initial(Event, Data) ->
    {next_state, initial, Data}.
 
 connected({received_request, Request}, State) ->
-   lager:info("received request ~p", [Request]),
    gen_tcp:send(State#state.server_socket, Request),
    {next_state, connected, State#state{message=Request}};
 
 connected({received_response, Response}, State) ->
-   lager:info("received response ~p", [Response]),
    gen_tcp:send(State#state.client_socket, Response),
    {next_state, connected, State#state{message=Response}};
 
 connected(client_disconnected, State) ->
-   lager:info("client disconnected"),
    ok = gen_tcp:close(State#state.client_socket),
    ok = gen_tcp:close(State#state.server_socket),
    {next_state, disconnected, State};
 
 connected(server_disconnected, State) ->
-   lager:info("server disconnected"),
    ok = gen_tcp:close(State#state.server_socket),
    ok = gen_tcp:close(State#state.client_socket),
    {next_state, disconnected, State};
