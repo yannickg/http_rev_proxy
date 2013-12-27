@@ -10,7 +10,7 @@
          % custom state names
          initial/2, connected/2, disconnected/2]).
 %% private API
--export([loop/1]).
+-export([server_listener/1]).
 
 %%% PUBLIC API
 start(Socket) ->
@@ -67,7 +67,7 @@ terminate(normal, ready, _State=#state{}) ->
 terminate(_Reason, _StateName, _State) ->
   ok.
 
-loop(Pid) ->
+server_listener(Pid) ->
    receive
       {tcp, Socket, Data} ->
          http_proxy_connection:received_response(Pid, Data),
@@ -78,12 +78,11 @@ loop(Pid) ->
          lager:info("handle_info:tcp_error - ~p", [Reason])
    end,
 
-   loop(Pid).
+   server_listener(Pid).
 
 initial({received_request, Request}, State=#state{}) ->
-
    % make decision here.
-   Pid = spawn_link(?MODULE, loop, [self()]),
+   Pid = spawn_link(?MODULE, server_listener, [self()]),
    {ok, Socket} = gen_tcp:connect("google.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
    gen_tcp:controlling_process(Socket, Pid),
 
