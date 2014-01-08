@@ -1,3 +1,17 @@
+%% Copyright (c) 2014, Yannick Guay <yannick.guay@gmail.com>
+%%
+%% Permission to use, copy, modify, and/or distribute this software for any
+%% purpose with or without fee is hereby granted, provided that the above
+%% copyright notice and this permission notice appear in all copies.
+%%
+%% THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+%% WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+%% MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+%% ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+%% WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+%% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+%% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 -module(http_proxy_connection).
 
 -behaviour(gen_fsm).
@@ -13,11 +27,11 @@
 -export([server_listener/1]).
 
 %%% PUBLIC API
-start(Socket) ->
-   gen_fsm:start(?MODULE, [Socket], []).
+start(CallbackPid) ->
+   gen_fsm:start(?MODULE, [CallbackPid], []).
  
-start_link(Socket) ->
-   gen_fsm:start_link(?MODULE, [Socket], []).
+start_link(CallbackPid) ->
+   gen_fsm:start_link(?MODULE, [CallbackPid], []).
 
 received_request(Pid, Request) ->
    gen_fsm:send_event(Pid, {received_request, Request}).
@@ -31,12 +45,13 @@ client_disconnected(Pid) ->
 server_disconnected(Pid) ->
    gen_fsm:send_event(Pid, server_disconnected).
 
--record(state, {client_socket,
-                server_socket,
-                message}).
+-record(state, {
+                  callback_pid,
+                  socket
+               }).
 
-init([Socket]) ->
-   {ok, initial, #state{client_socket=Socket}}.
+init([CallbackPid]) ->
+   {ok, initial, #state{callback_pid=CallbackPid}}.
 
 %% Note: DO NOT reply to unexpected calls. Let the call-maker crash!
 handle_sync_event(Event, _From, StateName, Data) ->
@@ -46,12 +61,6 @@ handle_sync_event(Event, _From, StateName, Data) ->
 handle_info(_Info, _StateName, State) -> 
    lager:info("handle_info:_Info", []),
    {noreply, State}.
-
-%% The other player has sent this cancel event
-%% stop whatever we're doing and shut down!
-handle_event(received_request, _StateName, S=#state{}) ->
-   lager:info("received request", []),
-   {stop, other_cancelled, S};
 
 handle_event(Event, StateName, Data) ->
   unexpected(Event, StateName),
@@ -67,53 +76,57 @@ terminate(normal, ready, _State=#state{}) ->
 terminate(_Reason, _StateName, _State) ->
   ok.
 
-server_listener(Pid) ->
+server_listener(CallbackPid) ->
    receive
       {tcp, Socket, Data} ->
-         http_proxy_connection:received_response(Pid, Data),
-         inet:setopts(Socket, [{active, once}]);
+         http_proxy_connection:received_response(CallbackPid, Data),
+         inet:setopts(Socket, [{active, once}]),
+         server_listener(CallbackPid);
       {tcp_closed, _Socket} ->
-         ok;
-      {tcp_error, _Socket, Reason} ->
-         lager:info("handle_info:tcp_error - ~p", [Reason])
-   end,
+         http_proxy_connection:server_disconnected(CallbackPid);
+      {tcp_error, _Socket, _Reason} ->
+         http_proxy_connection:server_disconnected(CallbackPid)
+   end.
 
-   server_listener(Pid).
 
-initial({received_request, Request}, State=#state{}) ->
-   % make decision here.
+initial({received_request, Request}, State) ->
+   % Make decision here.
    Pid = spawn_link(?MODULE, server_listener, [self()]),
-   {ok, Socket} = gen_tcp:connect("google.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
+   {ok, Socket} = gen_tcp:connect("www.google.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
    gen_tcp:controlling_process(Socket, Pid),
 
-   gen_tcp:send(Socket, Request),
+   % Rewrite headers.
+   Headers = http_proxy_request:get(headers, Request),
+   NewHeaders = lists:keyreplace(<<"host">>, 1, Headers, {<<"host">>, <<"www.google.com">>}),
+   NewRequest = http_proxy_request:set([{headers, NewHeaders}], Request),
 
-   {next_state, connected, State#state{server_socket=Socket}};
+   Packet = http_proxy_request:build_packet(NewRequest),
+   gen_tcp:send(Socket, Packet),
 
-initial(client_disconnected, State=#state{}) ->
-   gen_tcp:close(State#state.client_socket),
+   {next_state, connected, State#state{socket=Socket}};
+
+initial(client_disconnected, State) ->
+   % do nothing
    {next_state, disconnected, State};
 
 initial(Event, Data) ->
    unexpected(Event, initial),
    {next_state, initial, Data}.
 
-connected({received_request, Request}, State) ->
-   gen_tcp:send(State#state.server_socket, Request),
-   {next_state, connected, State#state{message=Request}};
+connected({received_request, Request}, State=#state{socket=Socket}) ->
+   gen_tcp:send(Socket, Request),
+   {next_state, connected, State};
 
-connected({received_response, Response}, State) ->
-   gen_tcp:send(State#state.client_socket, Response),
-   {next_state, connected, State#state{message=Response}};
+connected({received_response, Response}, State=#state{callback_pid=CallbackPid}) ->
+   CallbackPid ! {received_response, Response},
+   {next_state, connected, State};
 
-connected(client_disconnected, State) ->
-   ok = gen_tcp:close(State#state.client_socket),
-   ok = gen_tcp:close(State#state.server_socket),
+connected(client_disconnected, State=#state{socket=Socket}) ->
+   ok = gen_tcp:close(Socket),
    {next_state, disconnected, State};
 
-connected(server_disconnected, State) ->
-   ok = gen_tcp:close(State#state.server_socket),
-   ok = gen_tcp:close(State#state.client_socket),
+connected(server_disconnected, State=#state{callback_pid=CallbackPid}) ->
+   CallbackPid ! {server_disconnected},
    {next_state, disconnected, State};
 
 connected(Event, Data) ->
@@ -127,4 +140,4 @@ disconnected(Event, Data) ->
 %% Unexpected allows to log unexpected messages
 unexpected(Msg, State) ->
   io:format("~p received unknown event ~p while in state ~p~n",
-  [self(), Msg, State]).
+              [self(), Msg, State]).
