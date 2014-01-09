@@ -22,4 +22,7 @@
 start() ->
 	ok = lager:start(),
 	ok = application:start(ranch),
+	ok = application:start(crypto),
+	ok = application:start(cowlib),
+	ok = application:start(cowboy),
 	ok = application:start(http_proxy).

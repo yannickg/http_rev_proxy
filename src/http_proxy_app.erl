@@ -24,8 +24,19 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-   {ok, _} = ranch:start_listener(http_proxy, 1,
-      ranch_tcp, [{port, 80}], http_proxy_protocol, []),
+	Dispatch = cowboy_router:compile([
+		{'_', [
+			{"/websocket", http_rev_proxy_ws_handler, []},
+			{"/[...]", http_rev_proxy_handler, []}
+		]}
+	]),
+
+	NbAcceptors = 1,
+	Port = 80,
+	TransOpts = [{port, Port}],
+	ProtoOpts = [{env, [{dispatch, Dispatch}]}],
+	{ok, _} = ranch:start_listener(http_rev_proxy, NbAcceptors,
+	  ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts),
     http_proxy_sup:start_link().
 
 stop(_State) ->

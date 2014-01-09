@@ -99,11 +99,8 @@ initial({received_request, Req}, State=#state{callback_pid=CallbackPid}) ->
          gen_tcp:controlling_process(Socket, Pid),
 
          % Rewrite headers.
-         Headers = http_proxy_request:get(headers, Req),
-         NewHeaders = lists:keyreplace(<<"host">>, 1, Headers, {<<"host">>, Header}),
-         NewRequest = http_proxy_request:set([{headers, NewHeaders}], Req),
-
-         Packet = http_proxy_request:build_packet(NewRequest),
+         Req2 = http_rev_proxy_request:replace_header(<<"host">>, Header, Req),
+         {Packet, _Req3} = http_rev_proxy_request:build_packet(Req2),
          gen_tcp:send(Socket, Packet),
          {next_state, connected, State#state{socket=Socket}};
       {error, Reason} ->
