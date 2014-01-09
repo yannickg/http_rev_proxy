@@ -88,22 +88,28 @@ server_listener(CallbackPid) ->
          http_proxy_connection:server_disconnected(CallbackPid)
    end.
 
+proxied_server(_Req) ->
+   {"www.google.com", 80, <<"www.google.com">>}.
 
-initial({received_request, Request}, State) ->
-   % Make decision here.
-   Pid = spawn_link(?MODULE, server_listener, [self()]),
-   {ok, Socket} = gen_tcp:connect("www.google.com", 80, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
-   gen_tcp:controlling_process(Socket, Pid),
+initial({received_request, Req}, State=#state{callback_pid=CallbackPid}) ->
+   {Hostname, Port, Header} = proxied_server(Req),
+   case gen_tcp:connect(Hostname, Port, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]) of
+      {ok, Socket} ->
+         Pid = spawn_link(?MODULE, server_listener, [self()]),
+         gen_tcp:controlling_process(Socket, Pid),
 
-   % Rewrite headers.
-   Headers = http_proxy_request:get(headers, Request),
-   NewHeaders = lists:keyreplace(<<"host">>, 1, Headers, {<<"host">>, <<"www.google.com">>}),
-   NewRequest = http_proxy_request:set([{headers, NewHeaders}], Request),
+         % Rewrite headers.
+         Headers = http_proxy_request:get(headers, Req),
+         NewHeaders = lists:keyreplace(<<"host">>, 1, Headers, {<<"host">>, Header}),
+         NewRequest = http_proxy_request:set([{headers, NewHeaders}], Req),
 
-   Packet = http_proxy_request:build_packet(NewRequest),
-   gen_tcp:send(Socket, Packet),
-
-   {next_state, connected, State#state{socket=Socket}};
+         Packet = http_proxy_request:build_packet(NewRequest),
+         gen_tcp:send(Socket, Packet),
+         {next_state, connected, State#state{socket=Socket}};
+      {error, Reason} ->
+         CallbackPid ! {connection_failed, Reason},
+         {next_state, disconnected, State}
+   end;
 
 initial(client_disconnected, State) ->
    % do nothing
@@ -113,8 +119,8 @@ initial(Event, Data) ->
    unexpected(Event, initial),
    {next_state, initial, Data}.
 
-connected({received_request, Request}, State=#state{socket=Socket}) ->
-   gen_tcp:send(Socket, Request),
+connected({received_request, Req}, State=#state{socket=Socket}) ->
+   gen_tcp:send(Socket, Req),
    {next_state, connected, State};
 
 connected({received_response, Response}, State=#state{callback_pid=CallbackPid}) ->

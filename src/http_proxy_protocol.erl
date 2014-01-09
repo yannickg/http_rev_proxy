@@ -413,6 +413,9 @@ wait_for_response(State=#state{socket=Socket, transport=Transport}) ->
       {received_response, Data} ->
          Transport:send(Socket, Data),
          wait_for_response(State);
+      {connection_failed, _Reason} ->
+         % TODO: need to send 503 error
+         Transport:close(Socket);
       {server_disconnected} ->
          Transport:close(Socket)
    end.
