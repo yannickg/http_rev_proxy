@@ -30,7 +30,7 @@
    status_code,
    content_length = 0,
    headers = [],
-   body,
+   body = <<>>,
    cowboy_req
 }).
 
@@ -81,4 +81,9 @@ headers_already_parsed(#http_rev_proxy_req{headers=Headers}) ->
    end.
 
 reply(#http_rev_proxy_req{status_code=StatusCode, headers=Headers, body=Body, cowboy_req=Req}) ->
-   cowboy_req:reply(StatusCode, Headers, Body, Req).
+   case Body of 
+      <<>> ->
+         cowboy_req:reply(StatusCode, Headers, Req);
+      _ ->
+         cowboy_req:reply(StatusCode, Headers, Body, Req)
+   end.

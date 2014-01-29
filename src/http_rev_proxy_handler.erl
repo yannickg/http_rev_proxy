@@ -75,7 +75,7 @@ parse_response(Req, Buffer) ->
          case extract_content_length(Headers) of
             undefined ->
                wait_response(Req2, Buffer);
-            ContentLength ->
+            ContentLength when ContentLength > 0 ->
                Req3 = http_rev_proxy_request:set_content_length(ContentLength, Req2),
                case extract_body(Buffer, ContentLength) of
                   {Headers2, undefined} ->
@@ -90,10 +90,11 @@ parse_response(Req, Buffer) ->
                      end,
                      wait_response(Req4, Buffer3);
                   {_, Body} ->
-                     % populate http_rev_proxy_request body here
                      Req4 = http_rev_proxy_request:set_headers(Headers, Req3),
                      http_rev_proxy_request:set_body(Body, Req4)
-               end
+               end;
+            _ ->
+               http_rev_proxy_request:set_headers(Headers, Req2)
          end;
       yes ->
          ContentLength = http_rev_proxy_request:get_content_length(Req),
