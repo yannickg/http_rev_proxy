@@ -89,7 +89,8 @@ server_listener(CallbackPid) ->
    end.
 
 proxied_server(_Req) ->
-   {"www.google.com", 80, <<"www.google.com">>}.
+   % {"www.google.com", 80, <<"www.google.com">>}.
+   {"siptricks.com", 5062, <<"siptricks.com">>}.
 
 initial({received_request, Req}, State=#state{callback_pid=CallbackPid}) ->
    {Hostname, Port, Header} = proxied_server(Req),

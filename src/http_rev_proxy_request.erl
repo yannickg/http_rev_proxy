@@ -58,7 +58,7 @@ build_packet(#http_rev_proxy_req{cowboy_req=Req}) ->
 	{[RequestLine, HeaderLines, <<"\r\n">>], #http_rev_proxy_req{cowboy_req=Req5}}.
 
 set_status_code(StatusCode, Req) ->
-   Req#http_rev_proxy_req{status_code=StatusCode}.
+   Req#http_rev_proxy_req{status_code=binary_to_integer(StatusCode)}.
 
 get_content_length(#http_rev_proxy_req{content_length=ContentLength}) ->
    ContentLength.
