@@ -17,6 +17,7 @@
 %% Request API.
 -export([new/1]).
 -export([replace_header/3]).
+-export([request_is_websocket/1]).
 -export([build_packet/1]).
 -export([set_status_code/2]).
 -export([get_content_length/1]).
@@ -42,6 +43,15 @@ replace_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
 	NewHeaders = lists:keyreplace(Key, 1, Headers, {Key, Value}),
 	Req3 = cowboy_req:set([{headers, NewHeaders}], Req2),
 	#http_rev_proxy_req{cowboy_req=Req3}.
+
+request_is_websocket(#http_rev_proxy_req{cowboy_req=Req}) ->
+   {Headers, _} = cowboy_req:headers(Req),
+   case lists:keyfind(<<"upgrade">>, 1, Headers) of
+      {Key, Value} ->
+         true;
+      _ ->
+         false
+   end.
 
 build_packet(#http_rev_proxy_req{cowboy_req=Req}) ->
    {Version, Req2} = cowboy_req:version(Req),
