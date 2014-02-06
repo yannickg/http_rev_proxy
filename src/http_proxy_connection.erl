@@ -24,7 +24,7 @@
          % custom state names
          initial/2, connected/2, disconnected/2]).
 %% private API
--export([server_listener/1]).
+-export([socket_listener/1]).
 
 %%% PUBLIC API
 start(CallbackPid) ->
@@ -76,12 +76,12 @@ terminate(normal, ready, _State=#state{}) ->
 terminate(_Reason, _StateName, _State) ->
   ok.
 
-server_listener(CallbackPid) ->
+socket_listener(CallbackPid) ->
    receive
       {tcp, Socket, Data} ->
          http_proxy_connection:received_response(CallbackPid, Data),
          inet:setopts(Socket, [{active, once}]),
-         server_listener(CallbackPid);
+         socket_listener(CallbackPid);
       {tcp_closed, _Socket} ->
          http_proxy_connection:server_disconnected(CallbackPid);
       {tcp_error, _Socket, _Reason} ->
@@ -96,12 +96,13 @@ initial({received_request, Req}, State=#state{callback_pid=CallbackPid}) ->
    {Hostname, Port, Header} = proxied_server(Req),
    case gen_tcp:connect(Hostname, Port, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]) of
       {ok, Socket} ->
-         Pid = spawn_link(?MODULE, server_listener, [self()]),
+         Pid = spawn_link(?MODULE, socket_listener, [self()]),
          gen_tcp:controlling_process(Socket, Pid),
 
          % Rewrite headers.
-         Req2 = http_rev_proxy_request:replace_header(<<"host">>, Header, Req),
-         {Packet, _Req3} = http_rev_proxy_request:build_packet(Req2),
+         RevProxyReq = http_rev_proxy_request:new(Req),
+         RevProxyReq2 = http_rev_proxy_request:replace_header(<<"host">>, Header, RevProxyReq),
+         {Packet, _RevProxyReq3} = http_rev_proxy_request:build_packet(RevProxyReq2),
          gen_tcp:send(Socket, Packet),
          {next_state, connected, State#state{socket=Socket}};
       {error, Reason} ->
