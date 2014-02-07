@@ -47,7 +47,7 @@ replace_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
 request_is_websocket(#http_rev_proxy_req{cowboy_req=Req}) ->
    {Headers, _} = cowboy_req:headers(Req),
    case lists:keyfind(<<"upgrade">>, 1, Headers) of
-      {Key, Value} ->
+      {_Key, _Value} ->
          true;
       _ ->
          false
