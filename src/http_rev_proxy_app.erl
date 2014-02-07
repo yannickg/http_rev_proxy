@@ -12,17 +12,32 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-{application, http_proxy,
- [
-  {description, "Erlang HTTP Proxy"},
-  {vsn, "1"},
-  {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib,
-                  lager,
-                  ranch
-                 ]},
-  {mod, { http_proxy_app, []}},
-  {env, []}
- ]}.
+-module(http_rev_proxy_app).
+
+-behaviour(application).
+
+%% Application callbacks
+-export([start/2, stop/1]).
+
+%% ===================================================================
+%% Application callbacks
+%% ===================================================================
+
+start(_StartType, _StartArgs) ->
+	Dispatch = cowboy_router:compile([
+		{'_', [
+			{"/websocket", http_rev_proxy_ws_handler, []},
+			{"/[...]", http_rev_proxy_handler, []}
+		]}
+	]),
+
+	NbAcceptors = 1,
+	Port = 80,
+	TransOpts = [{port, Port}],
+	ProtoOpts = [{env, [{dispatch, Dispatch}]}],
+	{ok, _} = ranch:start_listener(http_rev_proxy, NbAcceptors,
+	  ranch_tcp, TransOpts, cowboy_protocol, ProtoOpts),
+    http_rev_proxy_sup:start_link().
+
+stop(_State) ->
+    ok.

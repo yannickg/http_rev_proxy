@@ -12,7 +12,7 @@
 %% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 %% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
--module(http_proxy).
+-module(http_rev_proxy).
 
 %% API.
 -export([start/0]).
@@ -25,4 +25,4 @@ start() ->
 	ok = application:start(crypto),
 	ok = application:start(cowlib),
 	ok = application:start(cowboy),
-	ok = application:start(http_proxy).
+	ok = application:start(http_rev_proxy).
