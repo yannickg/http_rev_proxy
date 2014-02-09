@@ -17,7 +17,7 @@
 %% Request API.
 -export([new/1]).
 -export([replace_header/3]).
--export([request_is_websocket/1]).
+-export([socket_requires_options/1]).
 -export([build_packet/1]).
 -export([set_status_code/2]).
 -export([get_content_length/1]).
@@ -44,7 +44,17 @@ replace_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
 	Req3 = cowboy_req:set([{headers, NewHeaders}], Req2),
 	#http_rev_proxy_req{cowboy_req=Req3}.
 
-request_is_websocket(#http_rev_proxy_req{cowboy_req=Req}) ->
+headers_fixup(true, Req) ->
+   {Headers, Req2} = cowboy_req:headers(Req),
+   NewHeaders = lists:keydelete(<<"cookie">>, 1, Headers),
+   cowboy_req:set([{headers, NewHeaders}], Req2);
+headers_fixup(false, Req) ->
+   Req.
+
+socket_requires_options(#http_rev_proxy_req{cowboy_req=Req}) ->
+   request_is_websocket(Req).
+
+request_is_websocket(Req) ->
    {Headers, _} = cowboy_req:headers(Req),
    case lists:keyfind(<<"upgrade">>, 1, Headers) of
       {_Key, _Value} ->
@@ -54,10 +64,12 @@ request_is_websocket(#http_rev_proxy_req{cowboy_req=Req}) ->
    end.
 
 build_packet(#http_rev_proxy_req{cowboy_req=Req}) ->
+   lager:info("http_rev_proxy_request:build_packet", []),
    {Version, Req2} = cowboy_req:version(Req),
    {Method, Req3} = cowboy_req:method(Req2),
    {Path, Req4} = cowboy_req:path(Req3),
-   {Headers, Req5} = cowboy_req:headers(Req4),
+   Req5 = headers_fixup(request_is_websocket(Req4), Req4),
+   {Headers, Req6} = cowboy_req:headers(Req5),
 
    HTTPVer = atom_to_binary(Version, latin1),
 
@@ -65,7 +77,7 @@ build_packet(#http_rev_proxy_req{cowboy_req=Req}) ->
 		Path/binary, " ", HTTPVer/binary, "\r\n" >>,
 	HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
 		|| {Key, Value} <- Headers],
-	{[RequestLine, HeaderLines, <<"\r\n">>], #http_rev_proxy_req{cowboy_req=Req5}}.
+	{[RequestLine, HeaderLines, <<"\r\n">>], #http_rev_proxy_req{cowboy_req=Req6}}.
 
 set_status_code(StatusCode, Req) ->
    Req#http_rev_proxy_req{status_code=binary_to_integer(StatusCode)}.

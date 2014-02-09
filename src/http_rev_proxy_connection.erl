@@ -52,10 +52,8 @@ proxy_request(Req) ->
    [SocketFrom, TransportFrom] = cowboy_req:get([socket, transport], Req),
    State=#state{socket_from=SocketFrom, transport_from=TransportFrom,
       socket_to=SocketTo, transport_to=gen_tcp},
-   set_socket_options(http_rev_proxy_request:request_is_websocket(Req4), State),
+   set_socket_options(http_rev_proxy_request:socket_requires_options(Req4), State),
    socket_listener(State).
-
-
 
 socket_listener(State=#state{socket_from=SocketFrom, transport_from=TransportFrom,
       socket_to=SocketTo, transport_to=TransportTo}) ->
