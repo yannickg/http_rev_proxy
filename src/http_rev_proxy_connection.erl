@@ -23,23 +23,20 @@
    transport_to = undefined :: module()
 }).
 
-get_server_from_list([{Key, Value}|_], _Path) when Key =:= "/[...]" ->
+server_from_list([{Key, Value}|_], _Path) when Key =:= "/[...]" ->
    Value;
-
-get_server_from_list([{Key, Value}|_], Path) when Key =:= Path ->
+server_from_list([{Key, Value}|_], Path) when Key =:= Path ->
    Value;
-
-get_server_from_list([{_, _}|Tail], Path) ->
-   get_server_from_list(Tail, Path);
-
-get_server_from_list([], _Path) ->
+server_from_list([{_, _}|Tail], Path) ->
+   server_from_list(Tail, Path);
+server_from_list([], _Path) ->
    undefined.
 
-get_proxied_server(Req) ->
+proxied_server(Req) ->
    {ok, List} = application:get_env(http_rev_proxy, proxied_servers),
    {Bin, _} = cowboy_req:path(Req),
    Path = binary_to_list(Bin),
-   Value = get_server_from_list(List, Path),
+   Value = server_from_list(List, Path),
    Value.
 
 set_socket_options(true, #state{socket_from=Socket, transport_from=Transport}) ->
@@ -50,7 +47,7 @@ set_socket_options(false, _) ->
 proxy_request(Req) ->
    lager:info("~16w http_rev_proxy_connection:proxy_request", [self()]),
 
-   {Hostname, Port, Header} = get_proxied_server(Req),
+   {Hostname, Port, Header} = proxied_server(Req),
    {ok, SocketTo} = gen_tcp:connect(Hostname, Port, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
 
    % Rewrite headers.
