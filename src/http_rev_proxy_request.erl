@@ -19,19 +19,8 @@
 -export([replace_header/3]).
 -export([socket_requires_options/1]).
 -export([build_packet/1]).
--export([set_status_code/2]).
--export([get_content_length/1]).
--export([set_content_length/2]).
--export([set_headers/2]).
--export([set_body/2]).
--export([headers_already_parsed/1]).
--export([reply/1]).
 
 -record(http_rev_proxy_req, {
-   status_code,
-   content_length = 0,
-   headers = [],
-   body = <<>>,
    cowboy_req
 }).
 
@@ -78,34 +67,3 @@ build_packet(#http_rev_proxy_req{cowboy_req=Req}) ->
 	HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
 		|| {Key, Value} <- Headers],
 	{[RequestLine, HeaderLines, <<"\r\n">>], #http_rev_proxy_req{cowboy_req=Req6}}.
-
-set_status_code(StatusCode, Req) ->
-   Req#http_rev_proxy_req{status_code=binary_to_integer(StatusCode)}.
-
-get_content_length(#http_rev_proxy_req{content_length=ContentLength}) ->
-   ContentLength.
-
-set_content_length(ContentLength, Req) ->
-   Req#http_rev_proxy_req{content_length=ContentLength}.
-
-set_headers(Headers, Req) ->
-   Req#http_rev_proxy_req{headers=Headers}.
-
-set_body(Body, Req) ->
-   Req#http_rev_proxy_req{body=Body}.
-
-headers_already_parsed(#http_rev_proxy_req{headers=Headers}) ->
-   case Headers of
-      [] ->
-         no;
-      _ ->
-         yes
-   end.
-
-reply(#http_rev_proxy_req{status_code=StatusCode, headers=Headers, body=Body, cowboy_req=Req}) ->
-   case Body of 
-      <<>> ->
-         cowboy_req:reply(StatusCode, Headers, Req);
-      _ ->
-         cowboy_req:reply(StatusCode, Headers, Body, Req)
-   end.
