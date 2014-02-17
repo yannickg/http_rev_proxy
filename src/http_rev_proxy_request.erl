@@ -16,7 +16,7 @@
 
 %% Request API.
 -export([new/1]).
--export([replace_header/3]).
+-export([rewrite_header/3]).
 -export([socket_requires_options/1]).
 -export([build_packet/1]).
 
@@ -27,7 +27,7 @@
 new(Req) ->
 	#http_rev_proxy_req{cowboy_req=Req}.
 
-replace_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
+rewrite_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
 	{Headers, Req2} = cowboy_req:headers(Req),
 	NewHeaders = lists:keyreplace(Key, 1, Headers, {Key, Value}),
 	Req3 = cowboy_req:set([{headers, NewHeaders}], Req2),

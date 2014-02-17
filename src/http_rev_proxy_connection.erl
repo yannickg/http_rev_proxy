@@ -36,8 +36,7 @@ proxied_server(Req) ->
    {ok, List} = application:get_env(http_rev_proxy, proxied_servers),
    {Bin, _} = cowboy_req:path(Req),
    Path = binary_to_list(Bin),
-   Value = server_from_list(List, Path),
-   Value.
+   server_from_list(List, Path).
 
 set_socket_options(true, #state{socket_from=Socket, transport_from=Transport}) ->
    Transport:setopts(Socket, [{active, once}]);
@@ -47,19 +46,18 @@ set_socket_options(false, _) ->
 proxy_request(Req) ->
    lager:info("~16w http_rev_proxy_connection:proxy_request", [self()]),
 
-   {Hostname, Port, Header} = proxied_server(Req),
-   {ok, SocketTo} = gen_tcp:connect(Hostname, Port, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
+   {Host, Port} = proxied_server(Req),
+   {ok, SocketTo} = gen_tcp:connect(Host, Port, [binary, {active, once}, {nodelay, true}, {reuseaddr, true}]),
 
    % Rewrite headers.
    Req2 = http_rev_proxy_request:new(Req),
-   Req3 = http_rev_proxy_request:replace_header(<<"host">>, Header, Req2),
-   {Packet, Req4} = http_rev_proxy_request:build_packet(Req3),
+   {Packet, Req3} = http_rev_proxy_request:build_packet(Req2),
    gen_tcp:send(SocketTo, Packet),
 
    [SocketFrom, TransportFrom] = cowboy_req:get([socket, transport], Req),
    State=#state{socket_from=SocketFrom, transport_from=TransportFrom,
       socket_to=SocketTo, transport_to=gen_tcp},
-   set_socket_options(http_rev_proxy_request:socket_requires_options(Req4), State),
+   set_socket_options(http_rev_proxy_request:socket_requires_options(Req3), State),
    socket_listener(State).
 
 socket_listener(State=#state{socket_from=SocketFrom, transport_from=TransportFrom,
