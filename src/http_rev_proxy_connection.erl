@@ -70,7 +70,7 @@ socket_listener(State=#state{socket_from=SocketFrom, transport_from=TransportFro
          socket_listener(State);
       {tcp_closed, SocketTo} ->
          TransportFrom:close(SocketFrom),
-         lager:warning("~16w tcp_closed", [self()]);
+         lager:warning("~16w Socket to: tcp_closed", [self()]);
       {tcp_error, SocketTo, _Reason} ->
          TransportFrom:close(SocketFrom),
          lager:warning("~16w tcp_error", [self()]);
@@ -80,7 +80,7 @@ socket_listener(State=#state{socket_from=SocketFrom, transport_from=TransportFro
          socket_listener(State);
       {tcp_closed, SocketFrom} ->
          TransportTo:close(SocketTo),
-         lager:warning("~16w tcp_closed", [self()]);
+         lager:warning("~16w Socket from: tcp_closed", [self()]);
       {tcp_error, SocketFrom, _Reason} ->
          TransportTo:close(SocketTo),
          lager:warning("~16w tcp_error", [self()])

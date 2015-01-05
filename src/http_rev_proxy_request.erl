@@ -36,6 +36,7 @@ rewrite_header(Key, Value, #http_rev_proxy_req{cowboy_req=Req}) ->
 headers_fixup(true, Req) ->
    {Headers, Req2} = cowboy_req:headers(Req),
    NewHeaders = lists:keydelete(<<"cookie">>, 1, Headers),
+   lager:info("************NewHeaders: ~p", [NewHeaders]),
    cowboy_req:set([{headers, NewHeaders}], Req2);
 headers_fixup(false, Req) ->
    Req.
